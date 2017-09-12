@@ -1,7 +1,9 @@
 # coding: utf-8
+import sys, os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/core')
 
-from core import pywikibot
-from core import mwparserfromhell as mwparser
+from core import pywikibot as pwbot
+import core.mwparserfromhell as mwparser
 import core.scripts.category as category
 
 
@@ -12,35 +14,41 @@ class RemoveEntryError(Exception):
 
 class RemoveEntry:
     def __init__(self, template: mwparser.wikicode.Template):
-        if template.has("category"):
-            self.category = template.get("category")
+        self.template = template
+        self.parameters = None
+        if template.has("from_category"):
+            self.from_category = template.get("from_category")
         else:
             raise RemoveEntryError("Lacks category to be removed.")
         if template.has("summary"):
             self.summary = template.get("summary")
         else:
             raise RemoveEntryError("Lacks summary the bot uses.")
-        if template.has("admin_name"):
-            self.admin_name = template.get("admin_name")
+        if template.has("admin"):
+            self.admin_name = template.get("admin")
         else:
             raise RemoveEntryError("Lacks admin_name who requested the removal.")
 
     def remove_setup(self):
         # setup parameters with which category.py is called.
-        pass
+        parameters = ["remove", "-from:"+str(self.template.get("from_category").value), "-summary:"+str(self.template.get("summary").value)]
+        self.parameters = parameters
+
+    def call_category_py(self):
+        category.main(self.parameters)
 
 
 class TargetList:
-    def __init__(self, page: pywikibot.Page):
+    def __init__(self, page: pwbot.Page):
         self.page = page
         self.entries = list()
 
     def parse(self):
-        text = self.page.text()
+        text = self.page.text
         parsed = mwparser.parse(text)
         entries = list()
         for template in parsed.filter_templates():
-            if template.name.matches("User:Akasenbot/Entry"):
+            if template.name.matches("User:Akasenbot/remover/category/entry"):
                 entries.append(template)
 
         temp_entries = list()
@@ -54,13 +62,14 @@ class TargetList:
 
 
 def main(site):
-    target_list = TargetList(pywikibot.Page(site, "User:Akasenbot/category_removal_requests"))
+    target_list = TargetList(pwbot.Page(site, "User:Akasenbot/remover/category"))
     target_list.parse()
     entries = target_list.entries
     for entry in entries:
         entry.remove_setup()
+        print(entry.parameters)
 
 if __name__ == "__main__":
-    site = pywikibot.Site()
+    site = pwbot.Site()
     main(site)
 
